@@ -2,40 +2,26 @@ package cmds
 
 import (
 	"fmt"
-	"os"
-	"runtime"
-	"strings"
+	"log"
+
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/host"
 )
 
 func CPU() {
-	// 1. Get Operating System and Core Count using the runtime package
-	osName := runtime.GOOS
-	cores := runtime.NumCPU()
 
-	var cpuModel string
-
-	cpuModel = getLinuxCPU()
-
-	fmt.Println("OS: ", osName)
-	fmt.Printf("CPU: %s - %d Cores\n", cpuModel, cores)
-}
-
-// Linux implementation: Parsers /proc/cpuinfo
-func getLinuxCPU() string {
-	data, err := os.ReadFile("/proc/cpuinfo")
+	cpu, err := cpu.Info()
 	if err != nil {
-		return "Unknown Linux CPU"
+		log.Fatalf("unable to get cpu info: %v", err)
 	}
 
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		// Look for the "model name" line
-		if strings.HasPrefix(line, "model name") || strings.HasPrefix(line, "Processor") {
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				return strings.TrimSpace(parts[1])
-			}
-		}
+	host, err := host.Info()
+	if err != nil {
+		log.Fatalf("unable to get host info: %v", err)
 	}
-	return "Unknown Linux CPU"
+
+	fmt.Printf("OS: %s - Platform %s\n", host.OS, host.Platform)
+	fmt.Printf("Kernel: %s - %s\n", host.KernelVersion, host.KernelArch)
+	fmt.Printf("CPU: %s - Cores %v\n", cpu[0].ModelName, len(cpu))
+
 }

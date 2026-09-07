@@ -6,39 +6,13 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v4/disk"
 )
 
-// humanSize turns bytes into a human‑readable string.
-func humanSize(b uint64) string {
-	const (
-		_           = iota
-		KiB float64 = 1 << (10 * iota)
-		MiB
-		GiB
-		TiB
-		PiB
-	)
-
-	switch {
-	case b >= uint64(PiB):
-		return fmt.Sprintf("%.1f PiB", float64(b)/PiB)
-	case b >= uint64(TiB):
-		return fmt.Sprintf("%.1f TiB", float64(b)/TiB)
-	case b >= uint64(GiB):
-		return fmt.Sprintf("%.1f GiB", float64(b)/GiB)
-	case b >= uint64(MiB):
-		return fmt.Sprintf("%.1f MiB", float64(b)/MiB)
-	case b >= uint64(KiB):
-		return fmt.Sprintf("%.1f KiB", float64(b)/KiB)
-	default:
-		return fmt.Sprintf("%d B", b)
-	}
-}
-
 func STG() {
-	// Fetch all mount points (all devices, even USBs, network shares, etc.)
-	partitions, err := disk.Partitions(true)
+
+	partitions, err := disk.Partitions(false)
+
 	if err != nil {
 		log.Fatalf("unable to read partitions: %v", err)
 	}

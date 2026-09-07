@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"sort"
 	"strconv"
 
-	"github.com/shirou/gopsutil/v3/net"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/net"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 // connectionInfo holds the data we’ll print for a single listening socket.
@@ -58,22 +57,7 @@ func PORT(portFlag string) {
 			PID:       c.Pid,
 		})
 	}
-	/*	for _, c := range conns {
-			if c.Status != "LISTEN" {
-				continue
-			}
-			// Skip connections that don't have a PID (e.g. kernel sockets).
-			if c.Pid == 0 {
-				continue
-			}
-			infos = append(infos, connectionInfo{
-				LocalAddr: fmt.Sprintf("%s:%s", c.LocalAddr, c.LocalPort),
-				Port:      c.LocalPort,
-				Proto:     strings.ToUpper(c.Type),
-				PID:       c.Pid,
-			})
-		}
-	*/
+
 	// If the user supplied a port filter, prune the list.
 	if portFlag != "" {
 		p, err := strconv.ParseUint(portFlag, 10, 32)
@@ -89,37 +73,28 @@ func PORT(portFlag string) {
 		infos = filtered
 	}
 
-	// Sort by port for readability.
-	sort.Slice(infos, func(i, j int) bool { return infos[i].Port < infos[j].Port })
-
-	// Resolve the process name for each PID (cached to avoid duplicate look‑ups).
-	pidToName := make(map[int32]string)
-	for _, i := range infos {
-		if name, ok := pidToName[i.PID]; ok {
-			i.ProcName = name
-		} else {
-			p, err := process.NewProcess(i.PID)
-			if err != nil {
-				i.ProcName = "???"
-			} else {
-				name, _ := p.Name()
-				i.ProcName = name
-			}
-			pidToName[i.PID] = i.ProcName
+	for i := range infos {
+		PID := infos[i].PID
+		p, err := process.NewProcess(PID)
+		if err != nil {
+			infos[i].ProcName = "???"
 		}
-	}
-
-	// Print a nice table header.
-	fmt.Printf("%-20s %-6s %-6s %-15s\n", "Local Address", "Proto", "PID", "Process")
-	for _, i := range infos {
-		fmt.Printf("%-20s %-6s %-6d %-15s\n", i.LocalAddr, i.Proto, i.PID, i.ProcName)
+		name, _ := p.Name()
+		infos[i].ProcName = name
 	}
 
 	if len(infos) == 0 {
 		if portFlag != "" {
 			fmt.Fprintf(os.Stderr, "No listening socket found for port %s\n", portFlag)
+			return
 		} else {
 			fmt.Println("No listening sockets found.")
+			return
 		}
+	}
+
+	fmt.Printf("%-20s %-6s %-6s %-15s\n", "Local Address", "Proto", "PID", "Process")
+	for _, i := range infos {
+		fmt.Printf("%-20s %-6s %-6d %-15s\n", i.LocalAddr, i.Proto, i.PID, i.ProcName)
 	}
 }
