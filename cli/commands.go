@@ -3,8 +3,9 @@ package cli
 import (
 	"context"
 
-	"github.com/urfave/cli/v3"
 	"peek/cmds"
+
+	"github.com/urfave/cli/v3"
 )
 
 var cpuPeek = &cli.Command{
@@ -40,6 +41,16 @@ var portPeek = &cli.Command{
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		portFlag := cmd.Args().Get(0)
 		cmds.PORT(portFlag)
+		return nil
+	},
+}
+
+var procPeek = &cli.Command{
+	Name:  "proc",
+	Usage: "peek proc",
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		actionFlag := cmd.Args().Get(0)
+		cmds.PROC(actionFlag)
 		return nil
 	},
 }

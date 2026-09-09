@@ -2,9 +2,10 @@ package cli
 
 import (
 	"context"
-	"github.com/urfave/cli/v3"
 	"log"
 	"os"
+
+	"github.com/urfave/cli/v3"
 )
 
 func Exec() {
@@ -21,5 +22,6 @@ var peekCmd = &cli.Command{
 		memPeek,
 		stgPeek,
 		portPeek,
+		procPeek,
 	},
 }
