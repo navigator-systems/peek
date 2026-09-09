@@ -33,6 +33,9 @@ peek mem       # Estadísticas de memoria virtual
 peek stg       # Uso de almacenamiento por partición
 peek port      # Listar puertos en escucha
 peek port 8080 # Filtrar por puerto específico
+peek proc      # Procesos corriendo 
+peek proc mem  # 10 Procesos que mas consume memoria
+peek proc cpu  # 10 Procesos con mas uso de CPU
 ```
 
 ---
