@@ -206,6 +206,43 @@ Local Address        Proto  PID    Process
 
 ---
 
+### `peek proc`
+
+Lista todos los procesos activos.
+
+```bash
+# Listar todos los procesos
+peek proc
+
+# Filtrar por los 10 procesos que mas consumen CPU
+peek proc cpu
+
+# Filtrar por los 10 procesos que mas consumen Memoria
+peek proc mem
+```
+
+**Salida esperada:**
+
+```
+Name                 PID    CPU    Mem    Command             
+peek                 15730  46.524 0.070 ./peek proc cpu     
+brave                2981   11.246 1.061 /opt/brave.com/brave/brave 
+codium               2594   6.285 2.046 /usr/share/codium/codium
+kwin_x11             1821   4.487 1.231 /usr/bin/kwin_x11 --replace
+brave                3370   4.459 1.630 /opt/brave.com/brave/brave
+...
+
+```
+
+| Campo | Descripción |
+|-------|-------------|
+| Local Address | Dirección IP y puerto (formato IP:Puerto) |
+| Proto | Protocolo de red (TCP, UDP, UNIX) |
+| PID | Identificador del proceso |
+| Process | Nombre del proceso que mantiene el puerto |
+
+---
+
 ## Arquitectura del Proyecto
 
 ### Estructura de Directorios
@@ -225,6 +262,7 @@ peek/
         ├── mem.go   # Lógica del comando 'mem'
         ├── stg.go   # Lógica del comando 'stg'
         ├── port.go  # Lógica del comando 'port'
+        ├── proc.go  # Lógica del comando 'proc'
         └── ops.go   # Utilidades compartidas (humanSize)
 ```
 
