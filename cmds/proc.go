@@ -4,36 +4,52 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"strconv"
+	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
 )
 
 type procInfo struct {
 	Name    string
+	User    string
+	Status  []string
 	PID     int32
 	Command string
 	CPU     float64
 	Mem     float32
 }
 
-func PROC(action string) {
+func PROC(action string, pidFlag string) {
 
 	proc, err := process.Processes()
 	if err != nil {
 		log.Fatalf("unable to get processes info: %v", err)
 	}
 
+	for _, p := range proc {
+		_, err := p.CPUPercent()
+		if err != nil {
+			continue
+		}
+	}
+
+	time.Sleep(1 * time.Second)
 	var infoProcs []procInfo
 
 	for i := range proc {
 		procID := proc[i].Pid
 		p, _ := process.NewProcess(procID)
 		name, _ := p.Name()
+		user, _ := p.Username()
+		status, _ := p.Status()
 		cmd, _ := p.Cmdline()
 		cpu, _ := p.CPUPercent()
 		mem, _ := p.MemoryPercent()
 		infoProcs = append(infoProcs, procInfo{
 			Name:    name,
+			User:    user,
+			Status:  status,
 			PID:     procID,
 			Command: cmd,
 			CPU:     cpu,
@@ -43,16 +59,38 @@ func PROC(action string) {
 
 	switch action {
 	case "cpu":
-		ProcByCPU(infoProcs)
+		procByCPU(infoProcs)
 	case "mem":
-		ProcByMem(infoProcs)
+		procByMem(infoProcs)
+	case "pid":
+		infoProc(infoProcs, pidFlag)
 	default:
 		printNice(infoProcs)
 	}
 
 }
 
-func ProcByCPU(info []procInfo) {
+func infoProc(info []procInfo, pid string) {
+	PID, err := strconv.ParseInt(pid, 10, 32)
+	PID32 := int32(PID)
+	if err != nil {
+		log.Fatalln("Error reading value", pid)
+	}
+	for _, p := range info {
+		if p.PID == PID32 {
+			fmt.Println("Process")
+			fmt.Printf("Name:    %s\n", p.Name)
+			fmt.Printf("PID:     %v\n", PID32)
+			fmt.Printf("User:    %s\n", p.User)
+			fmt.Printf("Status:  %v\n", p.Status)
+			fmt.Printf("Command: %s\n", p.Command)
+
+		}
+	}
+
+}
+
+func procByCPU(info []procInfo) {
 	var infoProcs []procInfo
 
 	// Ordenar de mayor a menor CPU
@@ -78,7 +116,7 @@ func ProcByCPU(info []procInfo) {
 	printNice(infoProcs)
 }
 
-func ProcByMem(info []procInfo) {
+func procByMem(info []procInfo) {
 	var infoProcs []procInfo
 
 	// Ordenar de mayor a menor CPU
@@ -105,7 +143,7 @@ func ProcByMem(info []procInfo) {
 }
 
 func printNice(info []procInfo) {
-	fmt.Printf("%-20s %-6s %-6s %-6s %-20s\n", "Name", "PID", "CPU", "Mem", "Command")
+	fmt.Printf("%-20s %-6s %-6s %-6s %-20s\n", "Name", "PID", "CPU%", "Mem%", "Command")
 	for _, i := range info {
 		fmt.Printf("%-20s %-6v %.3f %.3f %-20s\n", i.Name, i.PID, i.CPU, i.Mem, i.Command)
 	}

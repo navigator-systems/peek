@@ -50,7 +50,8 @@ var procPeek = &cli.Command{
 	Usage: "peek proc",
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		actionFlag := cmd.Args().Get(0)
-		cmds.PROC(actionFlag)
+		pidFlag := cmd.Args().Get(1)
+		cmds.PROC(actionFlag, pidFlag)
 		return nil
 	},
 }
