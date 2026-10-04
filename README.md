@@ -222,6 +222,10 @@ peek proc cpu
 
 # Filtrar por los 10 procesos que mas consumen Memoria
 peek proc mem
+
+# Ver detalles de un proceso por PID
+peek proc pid 1234
+
 ```
 
 **Salida esperada:**
