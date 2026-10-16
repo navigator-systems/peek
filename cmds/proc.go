@@ -11,13 +11,13 @@ import (
 )
 
 type procInfo struct {
-	Name    string
-	User    string
-	Status  []string
-	PID     int32
-	Command string
-	CPU     float64
-	Mem     float32
+	Name    string   `json:"name"`
+	User    string   `json:"user"`
+	Status  []string `json:"status"`
+	PID     int32    `json:"pid"`
+	Command string   `json:"command"`
+	CPU     float64  `json:"cpu"`
+	Mem     float32  `json:"mem"`
 }
 
 func PROC(action string, pidFlag string) {

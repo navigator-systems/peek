@@ -7,7 +7,14 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
-func MEM() {
+type memStruct struct {
+	Total       string  `json:"total"`
+	Free        string  `json:"free"`
+	Used        string  `json:"used"`
+	UsedPercent float32 `json:"used_percent"`
+}
+
+func MEM(jsonOutput bool) {
 	v, err := mem.VirtualMemory()
 	if err != nil {
 		log.Fatalf("could not get virtual memory: %v", err)
@@ -19,8 +26,19 @@ func MEM() {
 	used := humanSize(v.Used)
 
 	usedPer := float32(v.UsedPercent)
+	if jsonOutput {
+		memInfo := memStruct{
+			Total:       total,
+			Free:        free,
+			Used:        used,
+			UsedPercent: usedPer,
+		}
+		fmt.Printf("%+v\n", memInfo)
+		return
+	} else {
+		fmt.Printf("Total: %s, Free:%s, Used:%s, UsedPercent:%.3f%%\n", total, free, used, usedPer)
+	}
 
-	fmt.Printf("Total: %s, Free:%s, Used:%s, UsedPercent:%.3f%%\n", total, free, used, usedPer)
 }
 
 // Helper function to format raw KiB into MiB or GiB strings

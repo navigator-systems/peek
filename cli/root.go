@@ -15,6 +15,9 @@ func Exec() {
 }
 
 var peekCmd = &cli.Command{
+	Flags: []cli.Flag{
+		jsonFlag,
+	},
 	Name:  "peek",
 	Usage: "Just a simple peek app that gives me information about linux",
 	Commands: []*cli.Command{

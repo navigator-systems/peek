@@ -12,7 +12,7 @@ var cpuPeek = &cli.Command{
 	Name:  "cpu",
 	Usage: "peek cpu",
 	Action: func(ctx context.Context, cmd *cli.Command) error {
-		cmds.CPU()
+		cmds.CPU(cmd.Bool("json"))
 		return nil
 	},
 }
@@ -21,7 +21,7 @@ var memPeek = &cli.Command{
 	Name:  "mem",
 	Usage: "peek mem",
 	Action: func(ctx context.Context, cmd *cli.Command) error {
-		cmds.MEM()
+		cmds.MEM(cmd.Bool("json"))
 		return nil
 	},
 }
@@ -40,7 +40,7 @@ var portPeek = &cli.Command{
 	Usage: "peek port",
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		portFlag := cmd.Args().Get(0)
-		cmds.PORT(portFlag)
+		cmds.PORT(portFlag, cmd.Bool("json"))
 		return nil
 	},
 }

@@ -53,7 +53,7 @@ peek proc cpu  # 10 Procesos con mas uso de CPU
 ### 1. Clonar el Repositorio
 
 ```bash
-git clone https://github.com/navigator/peek.git
+git clone https://github.com/navigator-systems/peek.git
 cd peek
 ```
 

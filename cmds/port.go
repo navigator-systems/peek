@@ -1,6 +1,7 @@
 package cmds
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -12,14 +13,14 @@ import (
 
 // connectionInfo holds the data we’ll print for a single listening socket.
 type connectionInfo struct {
-	LocalAddr string // e.g. "0.0.0.0:8080"
-	Port      uint32
-	Proto     string // "tcp", "udp", ...
-	PID       int32
-	ProcName  string
+	LocalAddr string `json:"local_addr"` // e.g. "0.0.0.0:8080"
+	Port      uint32 `json:"port"`
+	Proto     string `json:"proto"` // "tcp", "udp", ...
+	PID       int32  `json:"pid"`
+	ProcName  string `json:"proc_name"`
 }
 
-func PORT(portFlag string) {
+func PORT(portFlag string, jsonOutput bool) {
 
 	// Gather all listening connections.
 	conns, err := net.Connections("inet")
@@ -27,7 +28,7 @@ func PORT(portFlag string) {
 		log.Fatalf("could not fetch connections: %v", err)
 	}
 
-	var infos []connectionInfo
+	infos := make([]connectionInfo, 0)
 
 	for _, c := range conns {
 		if c.Status != "LISTEN" {
@@ -64,7 +65,7 @@ func PORT(portFlag string) {
 		if err != nil {
 			log.Fatalf("invalid port: %v", err)
 		}
-		var filtered []connectionInfo
+		filtered := make([]connectionInfo, 0)
 		for _, i := range infos {
 			if uint32(p) == i.Port {
 				filtered = append(filtered, i)
@@ -74,13 +75,26 @@ func PORT(portFlag string) {
 	}
 
 	for i := range infos {
-		PID := infos[i].PID
-		p, err := process.NewProcess(PID)
+		p, err := process.NewProcess(infos[i].PID)
 		if err != nil {
 			infos[i].ProcName = "???"
+			continue
 		}
-		name, _ := p.Name()
+		name, err := p.Name()
+		if err != nil {
+			infos[i].ProcName = "???"
+			continue
+		}
 		infos[i].ProcName = name
+	}
+
+	if jsonOutput {
+		encoded, err := json.Marshal(infos)
+		if err != nil {
+			log.Fatalf("unable to encode port info as json: %v", err)
+		}
+		fmt.Println(string(encoded))
+		return
 	}
 
 	if len(infos) == 0 {
