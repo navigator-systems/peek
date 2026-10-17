@@ -51,7 +51,6 @@ var procPeek = &cli.Command{
 	Action: func(ctx context.Context, cmd *cli.Command) error {
 		actionFlag := cmd.Args().Get(0)
 		pidFlag := cmd.Args().Get(1)
-		cmds.PROC(actionFlag, pidFlag)
-		return nil
+		return cmds.PROC(actionFlag, pidFlag, cmd.Bool("json"))
 	},
 }

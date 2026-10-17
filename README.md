@@ -1,4 +1,4 @@
-# Peek — Monitor del Sistema Linux desde la Terminal
+# Peek — Información del sistema desde la terminal
 
 ## Tabla de Contenidos
 
@@ -10,6 +10,8 @@
    - [peek mem](#peek-mem)
    - [peek stg](#peek-stg)
    - [peek port](#peek-port)
+   - [peek proc](#peek-proc)
+   - [Salida JSON](#salida-json)
 5. [Arquitectura del Proyecto](#arquitectura-del-proyecto)
    - [Estructura de Directorios](#estructura-de-directorios)
    - [Flujo de Ejecución](#flujo-de-ejecución)
@@ -17,7 +19,7 @@
 7. [Guía de Desarrollo](#guía-de-desarrollo)
    - [Añadir un Nuevo Comando](#añadir-un-nuevo-comando)
    - [Convenciones de Código](#convenciones-de-código)
-8. [Ejemplos de Salida](#ejemplos-de-salida)
+8. [Ideas y funcionalidades Unix solicitadas con frecuencia](#ideas-y-funcionalidades-unix-solicitadas-con-frecuencia)
 9. [Limitaciones](#limitaciones)
 10. [Licencia](#licencia)
 
@@ -25,17 +27,19 @@
 
 ## Descripción
 
-**Peek** es una herramienta de línea de comandos escrita en **Go** que proporciona información en tiempo real sobre recursos del sistema operativo Linux. Diseñada para ser minimalista, rápida y fácil de usar, permite consultar el estado de CPU, memoria, almacenamiento y puertos de red sin necesidad de herramientas externas complejas.
+**Peek** es una herramienta de línea de comandos escrita en **Go** para consultar información del sistema y sus procesos. Usa `gopsutil` para leer CPU, memoria, almacenamiento, conexiones y procesos. Aunque nació como una herramienta para Linux, sus dependencias admiten varios sistemas operativos; el soporte real depende de las funciones disponibles en cada plataforma.
 
 ```
-peek cpu       # Información del CPU y sistema operativo
-peek mem       # Estadísticas de memoria virtual
-peek stg       # Uso de almacenamiento por partición
-peek port      # Listar puertos en escucha
-peek port 8080 # Filtrar por puerto específico
-peek proc      # Procesos corriendo 
-peek proc mem  # 10 Procesos que mas consume memoria
-peek proc cpu  # 10 Procesos con mas uso de CPU
+peek cpu             # Información del procesador y del sistema operativo
+peek mem             # Estadísticas de memoria virtual
+peek stg             # Uso de almacenamiento por punto de montaje
+peek port            # Sockets TCP en escucha
+peek port 8080       # Filtrar sockets por puerto
+peek proc            # Procesos y métricas de CPU/memoria
+peek proc cpu        # 10 procesos con mayor uso de CPU
+peek proc mem        # 10 procesos con mayor uso de memoria
+peek proc pid 1234   # Detalles de un proceso
+peek --help          # Ayuda de la CLI
 ```
 
 ---
@@ -69,7 +73,7 @@ go mod tidy
 # Compilación estándar
 go build -o peek .
 
-# Compilación conflags de optimización
+# Compilación optimizada
 go build -ldflags="-s -w" -o peek .
 ```
 
@@ -77,7 +81,7 @@ go build -ldflags="-s -w" -o peek .
 
 ```bash
 # Ejecutar directamente con Go
-go run .
+go run . --help
 
 # O usar el binario compilado
 ./peek --help
@@ -117,10 +121,12 @@ CPU: Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz - Cores 16
 |-------|-------------|
 | OS | Sistema operativo base |
 | Platform | Familia/distribución del sistema |
-| Kernel | Versión del kernel de Linux |
+| Kernel | Versión del kernel |
 | KernelArch | Arquitectura del kernel (x86_64, arm64, etc.) |
 | CPU | Modelo completo del procesador |
 | Cores | Cantidad de núcleos lógicos disponibles |
+
+El formato JSON también está disponible con `--json`; consulta [Salida JSON](#salida-json).
 
 ---
 
@@ -144,6 +150,8 @@ Total: 31.17 GiB, Free: 8.24 GiB, Used: 22.93 GiB, UsedPercent: 73.561%
 | Free | Memoria completamente libre |
 | Used | Memoria en uso |
 | UsedPercent | Porcentaje de uso |
+
+El formato JSON también está disponible con `--json`.
 
 ---
 
@@ -175,11 +183,13 @@ Total: 251.00 GB  Used: 105.35 GB  Free: 145.65 GB
 | USED | Espacio utilizado |
 | FREE | Espacio disponible |
 
+El comando `stg` no tiene salida JSON todavía.
+
 ---
 
 ### `peek port`
 
-Lista todos los sockets en estado LISTEN (puertos abiertos esperando conexiones).
+Lista sockets TCP en estado `LISTEN` (esperando conexiones). El acceso al PID y al nombre del proceso puede depender de los permisos del usuario.
 
 ```bash
 # Listar todos los puertos
@@ -203,9 +213,11 @@ Local Address        Proto  PID    Process
 | Campo | Descripción |
 |-------|-------------|
 | Local Address | Dirección IP y puerto (formato IP:Puerto) |
-| Proto | Protocolo de red (TCP, UDP, UNIX) |
+| Proto | Protocolo del socket (en esta lista, TCP) |
 | PID | Identificador del proceso |
 | Process | Nombre del proceso que mantiene el puerto |
+
+Usa `peek --json port` para obtener JSON.
 
 ---
 
@@ -225,8 +237,9 @@ peek proc mem
 
 # Ver detalles de un proceso por PID
 peek proc pid 1234
-
 ```
+
+Las métricas de CPU se calculan a partir de dos lecturas separadas por un segundo. En sistemas multinúcleo, un proceso puede superar el 100% si consume más de un núcleo. Los comandos `cpu` y `mem` muestran como máximo diez procesos, en orden descendente. Para obtener JSON, agrega `--json`, por ejemplo `peek --json proc cpu`.
 
 **Salida esperada:**
 
@@ -243,10 +256,27 @@ brave                3370   4.459 1.630 /opt/brave.com/brave/brave
 
 | Campo | Descripción |
 |-------|-------------|
-| Local Address | Dirección IP y puerto (formato IP:Puerto) |
-| Proto | Protocolo de red (TCP, UDP, UNIX) |
+| Name | Nombre del proceso |
 | PID | Identificador del proceso |
-| Process | Nombre del proceso que mantiene el puerto |
+| CPU% | Porcentaje de CPU observado durante el intervalo de muestreo |
+| Mem% | Porcentaje de memoria física usado por el proceso |
+| Command | Línea de comandos del proceso |
+
+El modo `pid` muestra nombre, PID, usuario, estado y comando. Un PID inválido o que ya no existe se informa como error.
+
+### Salida JSON
+
+`--json` es una opción global y se admite en `cpu`, `mem`, `port` y `proc`. Ejemplos:
+
+```bash
+peek --json cpu
+peek --json mem
+peek --json port 8080
+peek --json proc
+peek --json proc pid 1234
+```
+
+La salida JSON está pensada para scripts y herramientas como `jq`. `stg` actualmente solo produce una tabla de texto.
 
 ---
 
@@ -256,21 +286,19 @@ brave                3370   4.459 1.630 /opt/brave.com/brave/brave
 
 ```
 peek/
-├── main.go          # Punto de entrada, importa cli.Exec()
-├── go.mod           # Definición de dependencias Go
-├── go.sum           # Checksums de dependencias
-│
-└── cli/             # Paquete principal de CLI
-    ├── root.go      # Definición del comando raíz "peek"
-    ├── commands.go  # Registro de subcomandos (cpu, mem, stg, port)
-    │
-    └── cmds/        # Paquete de implementación de comandos
-        ├── cpu.go   # Lógica del comando 'cpu'
-        ├── mem.go   # Lógica del comando 'mem'
-        ├── stg.go   # Lógica del comando 'stg'
-        ├── port.go  # Lógica del comando 'port'
-        ├── proc.go  # Lógica del comando 'proc'
-        └── ops.go   # Utilidades compartidas (humanSize)
+├── main.go          # Punto de entrada
+├── go.mod           # Módulo y dependencias
+├── cli/             # Definición y registro de comandos
+│   ├── root.go
+│   ├── commands.go
+│   └── flags.go
+└── cmds/            # Implementación de comandos y utilidades
+    ├── cpu.go
+    ├── mem.go
+    ├── stg.go
+    ├── port.go
+    ├── proc.go
+    └── ops.go
 ```
 
 ### Flujo de Ejecución
@@ -291,9 +319,7 @@ peek/
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  peekCmd (root.go)                          │
-│  Nombre: "peek"                                             │
-│  Usage: "Just a simple peek app..."                         │
-│  Commands: [cpuPeek, memPeek, stgPeek, portPeek]            │
+│  Comandos: cpu, mem, stg, port, proc                        │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -302,7 +328,8 @@ peek/
 │  cpuPeek   → cmds.CPU()                                     │
 │  memPeek   → cmds.MEM()                                     │
 │  stgPeek   → cmds.STG()                                     │
-│  portPeek  → cmds.PORT(portFlag)                            │
+│  portPeek  → cmds.PORT()                                    │
+│  procPeek  → cmds.PROC()                                    │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -313,6 +340,7 @@ peek/
 │  mem.go  → gopsutil/mem                                     │
 │  stg.go  → gopsutil/disk                                    │
 │  port.go → gopsutil/net + gopsutil/process                  │
+│  proc.go → gopsutil/process                                 │
 │  ops.go  → Formato de bytes (humanSize)                     │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -352,7 +380,7 @@ Puerto en Go de la librería Python `psutil`. Proporciona acceso a información 
 | `mem` | `github.com/shirou/gopsutil/v4/mem` | Estadísticas de memoria virtual |
 | `disk` | `github.com/shirou/gopsutil/v4/disk` | Información de particiones y uso de disco |
 | `net` | `github.com/shirou/gopsutil/v4/net` | Conexiones de red y sockets |
-| `process` | `github.com/shirou/gopsutil/v4/process` | Información de procesos por PID |
+| `process` | `github.com/shirou/gopsutil/v4/process` | Información y métricas de procesos |
 
 ---
 
@@ -420,48 +448,36 @@ var peekCmd = &cli.Command{
 | Nombres de funciones | `PORT()`, `CPU()`, `MEM()` | Mayúsculas, alineación con comandos CLI |
 | Estructuras de datos | `connectionInfo` | CamelCase sin acrónimos |
 | Constantes | `KB`, `MB`, `GB` | Mayúsculas completas |
-| Manejo de errores | `log.Fatalf()` en init, retorna error en action | Fail-fast en setup, propagación en action |
+| Manejo de errores | Retorna errores desde la acción del comando | La CLI los informa y evita terminar el proceso desde la lógica de negocio |
 | Salida | `fmt.Printf` con formatos alineados | Tablas con anchos fijos para legibilidad |
 
 ---
 
-## Ejemplos de Salida
+## Ideas y funcionalidades Unix solicitadas con frecuencia
 
-### Ejemplo 1: CPU
+Estas son ideas para ampliar Peek; todavía no forman parte de los comandos disponibles:
 
-```
-OS: Linux - Platform ubuntu
-Kernel: 5.15.0 - x86_64
-CPU: 11th Gen Intel(R) Core(TM) i7-11700 @ 2.50GHz - Cores 16
-```
+| Idea | Equivalente Unix frecuente | Valor para Peek |
+|------|----------------------------|-----------------|
+| Interfaces, direcciones IP, rutas y contadores de tráfico | `ip`, `ifconfig`, `ip -s link` | Diagnosticar conectividad desde `peek net` |
+| Tiempo activo, carga y usuarios conectados | `uptime`, `who` | Resumen rápido del estado general, por ejemplo `peek uptime` |
+| Procesos con filtros por nombre, usuario o PID | `ps`, `pgrep`, `top` | Buscar y ordenar procesos sin canalizaciones externas |
+| Uso de disco por directorio | `du`, además de `df` | Encontrar directorios grandes; requiere una ruta y límites claros |
+| Sockets establecidos y UDP, no solo TCP en escucha | `ss`, `netstat`, `lsof` | Filtrar por protocolo, estado, dirección y proceso |
+| Servicios y logs recientes | `systemctl`, `journalctl` | Atajos para revisar el estado y mensajes de un servicio |
+| Actualización periódica | `watch` | Opción `--watch` con intervalo configurable y salida legible en terminal |
+| Salida JSON consistente para todos los comandos | `jq` en scripts | JSON también para almacenamiento y un esquema documentado |
+| Señales de proceso (terminar, pausar, continuar) | `kill`, `pkill` | Solo con confirmación, validación de PID y advertencias; Peek actualmente no modifica procesos |
 
-### Ejemplo 2: Memoria
+Como optimizaciones adicionales, conviene evitar consultas repetidas a la misma partición, devolver errores desde los comandos en vez de terminar el proceso con `log.Fatal`, agregar pruebas de formatos y ordenamiento, y comprobar cada función en Linux, macOS y FreeBSD antes de prometer compatibilidad.
 
-```
-Total: 31.17 GiB, Free: 18.52 GiB, Used: 12.65 GiB, UsedPercent: 40.584%
-```
+## Limitaciones
 
-### Ejemplo 3: Almacenamiento
-
-```
-MOUNT                 TYPE      TOTAL     USED     FREE
-/                     ext4      49.97 GB  24.50 GB 25.47 GB
-/boot/efi             vfat      1.00 GB   0.01 GB  0.99 GB
-/home                 ext4      98.51 GB  45.00 GB 53.51 GB
-
-TOTAL STORAGE OVERVIEW
-Total: 149.48 GB  Used: 69.51 GB  Free: 79.97 GB
-```
-
-### Ejemplo 4: Puertos
-
-```
-Local Address        Proto  PID    Process
-0.0.0.0:22           TCP    892    sshd
-127.0.0.1:631        TCP    1234   cupsd
-0.0.0.0:8080         TCP    5678   java
-:::33060             TCP    9012   mysqld
-```
+- El listado de procesos muestrea CPU durante un segundo; procesos que terminan o dejan de ser accesibles durante el muestreo pueden no aparecer.
+- Los permisos del sistema pueden limitar la información de procesos y sockets.
+- `stg` suma el uso de todos los puntos de montaje visibles; montajes enlazados o superpuestos pueden hacer que el total no represente capacidad física única.
+- `stg` aún no admite JSON; `port` lista únicamente sockets TCP en escucha.
+- El soporte concreto de cada función depende del sistema operativo, su configuración y los permisos del usuario.
 
 ---
 
