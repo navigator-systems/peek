@@ -54,3 +54,11 @@ var procPeek = &cli.Command{
 		return cmds.PROC(actionFlag, pidFlag, cmd.Bool("json"))
 	},
 }
+
+var tempPeek = &cli.Command{
+	Name:  "temp",
+	Usage: "peek temp",
+	Action: func(ctx context.Context, cmd *cli.Command) error {
+		return cmds.TEMP(cmd.Bool("json"))
+	},
+}

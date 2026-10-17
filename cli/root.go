@@ -26,5 +26,6 @@ var peekCmd = &cli.Command{
 		stgPeek,
 		portPeek,
 		procPeek,
+		tempPeek,
 	},
 }
