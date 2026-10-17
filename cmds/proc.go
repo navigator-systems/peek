@@ -1,8 +1,8 @@
 package cmds
 
 import (
+	"encoding/json"
 	"fmt"
-	"log"
 	"sort"
 	"strconv"
 	"time"
@@ -20,131 +20,171 @@ type procInfo struct {
 	Mem     float32  `json:"mem"`
 }
 
-func PROC(action string, pidFlag string) {
+type procDetails struct {
+	Name    string   `json:"name"`
+	User    string   `json:"user"`
+	Status  []string `json:"status"`
+	PID     int32    `json:"pid"`
+	Command string   `json:"command"`
+}
 
+func PROC(action string, pidFlag string, jsonOutput bool) error {
 	proc, err := process.Processes()
 	if err != nil {
-		log.Fatalf("unable to get processes info: %v", err)
+		return fmt.Errorf("unable to get processes info: %w", err)
 	}
 
+	if action == "pid" {
+		pid, err := strconv.ParseInt(pidFlag, 10, 32)
+		if err != nil || pid <= 0 {
+			return fmt.Errorf("invalid process ID %q", pidFlag)
+		}
+		for _, p := range proc {
+			if p.Pid == int32(pid) {
+				info, err := processDetails(p)
+				if err != nil {
+					return fmt.Errorf("unable to get process %d info: %w", pid, err)
+				}
+				if jsonOutput {
+					return printProcJSON(info)
+				}
+				printProcDetails(info)
+				return nil
+			}
+		}
+		return fmt.Errorf("process %d not found", pid)
+	}
+
+	// Keep the same process handles so the second CPU reading uses the first
+	// reading as its baseline.
+	sampled := make([]*process.Process, 0, len(proc))
 	for _, p := range proc {
-		_, err := p.CPUPercent()
-		if err != nil {
-			continue
+		if _, err := p.CPUPercent(); err == nil {
+			sampled = append(sampled, p)
 		}
 	}
 
-	time.Sleep(1 * time.Second)
-	var infoProcs []procInfo
-
-	for i := range proc {
-		procID := proc[i].Pid
-		p, _ := process.NewProcess(procID)
-		name, _ := p.Name()
-		user, _ := p.Username()
-		status, _ := p.Status()
-		cmd, _ := p.Cmdline()
-		cpu, _ := p.CPUPercent()
-		mem, _ := p.MemoryPercent()
-		infoProcs = append(infoProcs, procInfo{
-			Name:    name,
-			User:    user,
-			Status:  status,
-			PID:     procID,
-			Command: cmd,
-			CPU:     cpu,
-			Mem:     mem,
-		})
+	time.Sleep(time.Second)
+	infoProcs := make([]procInfo, 0, len(sampled))
+	for _, p := range sampled {
+		info, err := sampleProcess(p)
+		if err != nil {
+			continue
+		}
+		infoProcs = append(infoProcs, info)
 	}
 
 	switch action {
 	case "cpu":
-		procByCPU(infoProcs)
+		sort.Slice(infoProcs, func(i, j int) bool {
+			return infoProcs[i].CPU > infoProcs[j].CPU
+		})
+		infoProcs = topProcesses(infoProcs)
 	case "mem":
-		procByMem(infoProcs)
-	case "pid":
-		infoProc(infoProcs, pidFlag)
-	default:
-		printNice(infoProcs)
+		sort.Slice(infoProcs, func(i, j int) bool {
+			return infoProcs[i].Mem > infoProcs[j].Mem
+		})
+		infoProcs = topProcesses(infoProcs)
 	}
 
+	if jsonOutput {
+		return printProcJSON(infoProcs)
+	}
+	printNice(infoProcs)
+	return nil
 }
 
-func infoProc(info []procInfo, pid string) {
-	PID, err := strconv.ParseInt(pid, 10, 32)
-	PID32 := int32(PID)
+func sampleProcess(p *process.Process) (procInfo, error) {
+	name, err := p.Name()
 	if err != nil {
-		log.Fatalln("Error reading value", pid)
+		return procInfo{}, err
 	}
-	for _, p := range info {
-		if p.PID == PID32 {
-			fmt.Println("Process")
-			fmt.Printf("Name:    %s\n", p.Name)
-			fmt.Printf("PID:     %v\n", PID32)
-			fmt.Printf("User:    %s\n", p.User)
-			fmt.Printf("Status:  %v\n", p.Status)
-			fmt.Printf("Command: %s\n", p.Command)
-
-		}
+	user, err := p.Username()
+	if err != nil {
+		return procInfo{}, err
+	}
+	status, err := p.Status()
+	if err != nil {
+		return procInfo{}, err
+	}
+	cmd, err := p.Cmdline()
+	if err != nil {
+		return procInfo{}, err
+	}
+	cpu, err := p.CPUPercent()
+	if err != nil {
+		return procInfo{}, err
+	}
+	mem, err := p.MemoryPercent()
+	if err != nil {
+		return procInfo{}, err
 	}
 
+	return procInfo{
+		Name:    name,
+		User:    user,
+		Status:  status,
+		PID:     p.Pid,
+		Command: cmd,
+		CPU:     cpu,
+		Mem:     mem,
+	}, nil
 }
 
-func procByCPU(info []procInfo) {
-	var infoProcs []procInfo
-
-	// Ordenar de mayor a menor CPU
-	sort.Slice(info, func(i, j int) bool {
-		return info[i].CPU > info[j].CPU
-	})
-
-	// Mostrar los primeros 10
-	for i, p := range info {
-		if i == 10 {
-			break
-		}
-
-		infoProcs = append(infoProcs, procInfo{
-			Name:    p.Name,
-			PID:     p.PID,
-			Command: p.Command,
-			CPU:     p.CPU,
-			Mem:     p.Mem,
-		})
+func printProcJSON(info any) error {
+	encoded, err := json.Marshal(info)
+	if err != nil {
+		return fmt.Errorf("unable to encode process info as JSON: %w", err)
 	}
-
-	printNice(infoProcs)
+	fmt.Println(string(encoded))
+	return nil
 }
 
-func procByMem(info []procInfo) {
-	var infoProcs []procInfo
-
-	// Ordenar de mayor a menor CPU
-	sort.Slice(info, func(i, j int) bool {
-		return info[i].Mem > info[j].Mem
-	})
-
-	// Mostrar los primeros 10
-	for i, p := range info {
-		if i == 10 {
-			break
-		}
-
-		infoProcs = append(infoProcs, procInfo{
-			Name:    p.Name,
-			PID:     p.PID,
-			Command: p.Command,
-			CPU:     p.CPU,
-			Mem:     p.Mem,
-		})
+func processDetails(p *process.Process) (procDetails, error) {
+	name, err := p.Name()
+	if err != nil {
+		return procDetails{}, err
 	}
-	printNice(infoProcs)
+	user, err := p.Username()
+	if err != nil {
+		return procDetails{}, err
+	}
+	status, err := p.Status()
+	if err != nil {
+		return procDetails{}, err
+	}
+	cmd, err := p.Cmdline()
+	if err != nil {
+		return procDetails{}, err
+	}
+	return procDetails{
+		Name:    name,
+		User:    user,
+		Status:  status,
+		PID:     p.Pid,
+		Command: cmd,
+	}, nil
+}
 
+func printProcDetails(p procDetails) {
+	fmt.Println("Process")
+	fmt.Printf("Name:    %s\n", p.Name)
+	fmt.Printf("PID:     %d\n", p.PID)
+	fmt.Printf("User:    %s\n", p.User)
+	fmt.Printf("Status:  %v\n", p.Status)
+	fmt.Printf("Command: %s\n", p.Command)
+}
+
+func topProcesses(info []procInfo) []procInfo {
+	if len(info) > 10 {
+		return info[:10]
+	}
+	return info
 }
 
 func printNice(info []procInfo) {
 	fmt.Printf("%-20s %-6s %-6s %-6s %-20s\n", "Name", "PID", "CPU%", "Mem%", "Command")
 	for _, i := range info {
-		fmt.Printf("%-20s %-6v %.3f %.3f %-20s\n", i.Name, i.PID, i.CPU, i.Mem, i.Command)
+		fmt.Printf("%-20s %-6d %-6.3f %-6.3f %s\n", i.Name, i.PID, i.CPU, i.Mem, i.Command)
 	}
 }

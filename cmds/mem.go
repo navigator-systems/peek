@@ -1,6 +1,7 @@
 package cmds
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 
@@ -33,7 +34,11 @@ func MEM(jsonOutput bool) {
 			Used:        used,
 			UsedPercent: usedPer,
 		}
-		fmt.Printf("%+v\n", memInfo)
+		encoded, err := json.Marshal(memInfo)
+		if err != nil {
+			log.Fatalf("unable to encode memory info as JSON: %v", err)
+		}
+		fmt.Println(string(encoded))
 		return
 	} else {
 		fmt.Printf("Total: %s, Free:%s, Used:%s, UsedPercent:%.3f%%\n", total, free, used, usedPer)
